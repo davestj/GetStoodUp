@@ -1,4 +1,4 @@
-# # GetStoodUp: CloudFormation Template ECS Setup
+# GetStoodUp: CloudFormation Template ECS Setup
 
 This CloudFormation template sets up an Elastic Container Service (ECS) cluster with associated resources. It allows you to create an ECS cluster and associate it with an existing Elastic Container Registry (ECR) repository. The template includes parameters for customizing the cluster name and ECR repository.
 

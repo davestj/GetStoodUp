@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Base ECR Setup
+
+Parameters:
+  RepositoryName:
+    Type: String
+    Description: Name of the ECR repository
+  TagImmutability:
+    Type: String
+    Description: Specify whether to allow image tags to be overwritten
+    Default: false
+    AllowedValues: [true, false]
+  ScanOnPush:
+    Type: String
+    Description: Enable image vulnerability scanning on push
+    Default: false
+    AllowedValues: [true, false]
+  OtherAWSAccountId:
+    Type: String
+    Description: AWS Account ID for granting permissions to access ECR repository
+  OtherAWSUserName:
+    Type: String
+    Description: IAM User name in the other AWS account for granting permissions to access ECR repository
+  LifecyclePolicy:
+    Type: String
+    Description: ARN of the lifecycle policy to attach for maintenance
+
+Resources:
+  ECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref RepositoryName
+      ImageTagMutability: !Ref TagImmutability
+      ImageScanningConfiguration:
+        ScanOnPush: !Ref ScanOnPush
+
+  RepositoryPolicy:
+    Type: AWS::ECR::RepositoryPolicy
+    Properties:
+      RepositoryName: !Ref RepositoryName
+      PolicyText:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowOtherAWSAccountAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${OtherAWSAccountId}:user/${OtherAWSUserName}
+            Action:
+              - ecr:BatchCheckLayerAvailability
+              - ecr:BatchGetImage
+              - ecr:GetDownloadUrlForLayer
+              - ecr:GetRepositoryPolicy
+              - ecr:DescribeRepositories
+              - ecr:ListImages
+            Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${RepositoryName}
+
+  ECRRepositoryLifecyclePolicy:
+    Type: AWS::ECR::LifecyclePolicy
+    Properties:
+      RepositoryName: !Ref RepositoryName
+      PolicyText:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: CleanupOldImages
+            Effect: Allow
+            Principal:
+              AWS: '*'
+            Action:
+              - ecr:BatchDeleteImage
+            Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${RepositoryName}
+            Condition:
+              'StringEquals':
+                ecr:LifecyclePolicyPreview: 'false'
+            Selection:
+              tagStatus: untagged
+              countType: sinceImagePushed
+              countNumber: 120
+
+Outputs:
+  ECRRepositoryUrl:
+    Description: ECR Repository URL
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${RepositoryName}"
+  ECRRepositoryName:
+    Description: ECR Repository Name
+    Value: !Ref RepositoryName
+  ECRRepositoryLifecyclePolicyArn:
+    Description: ECR Repository Lifecycle Policy ARN
+    Value: !Ref ECRRepositoryLifecyclePolicy

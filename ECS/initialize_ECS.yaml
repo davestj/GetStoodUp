@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Setup
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: Name of the ECS cluster
+  ECRRepository:
+    Type: String
+    Description: Name of the ECR repository to associate with the ECS cluster
+
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ClusterName
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ClusterName}-TaskExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  ECSServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ClusterName}-ServiceRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+
+  ECSCapacityProvider:
+    Type: AWS::ECS::CapacityProvider
+    Properties:
+      Name: !Sub ${ClusterName}-CapacityProvider
+      AutoScalingGroupProvider:
+        ManagedScaling:
+          Status: ENABLED
+          TargetCapacity: 100
+          MinimumScalingStepSize: 1
+          MaximumScalingStepSize: 10
+          InstanceWarmupPeriod: 60
+        ManagedTerminationProtection: DISABLED
+      Tags:
+        - Key: Name
+          Value: !Sub ${ClusterName}-CapacityProvider
+          PropagateAtLaunch: true
+
+  ECRAssociation:
+    Type: AWS::ECS::RepositoryAssociation
+    Properties:
+      Cluster: !Ref ECSCluster
+      Service: ec2
+      RepositoryName: !Ref ECRRepository
+      Status: ACTIVE
+
+Outputs:
+  ECSClusterArn:
+    Description: ARN of the ECS cluster
+    Value: !GetAtt ECSCluster.Arn
+  ECSClusterName:
+    Description: Name of the ECS cluster
+    Value: !Ref ClusterName
